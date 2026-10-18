@@ -4,9 +4,12 @@ Semi-automated, reproducible comparison against a **project-reference STGT**.
 Code lives in GitHub; datasets/artifacts live in Google Drive; large processing
 and model experiments run in an interactively authorized Google Colab session.
 
-**Status:** Adaptive STGT implementation and pipeline integration are prepared
-locally. No new preprocessing, GPU training, or test-set evaluation has been
-run by this agent. No result or model superiority is claimed. See
+**Status:** The training campaigns and the no-training paper evaluation are
+complete for ISOMORPH and SupplyGraph. Final evaluation tables and figures are
+stored in `paper_outputs/`; model checkpoints and processed inputs remain in
+private Drive storage and are never committed. Favorita is excluded from the
+final paper evaluation. The SupplyGraph real-graph Job B reproduction gate is
+recorded as incomplete rather than claimed as passed. See
 `RESEARCH_STATUS.md` for the artifact audit and limitations.
 
 ## Structure
@@ -19,6 +22,11 @@ research/
 ├── data/processed/                # generated/versioned data, ignored
 ├── notebooks/colab_experiment.ipynb
 ├── orchestrator.py                # Colab/Drive/push/quality/budget gates
+├── download_drive_artifacts.py    # token-path parameterized Drive downloader
+├── paper_evaluation.py             # no-training validation/test extraction
+├── run_statistical_pipeline.py     # window/time-aware paper statistics
+├── generate_figures.py             # reviewed paper figures
+├── paper_outputs/                  # reviewed aggregate tables and figures
 ├── src/
 │   ├── preprocessing.py
 │   ├── dataset.py
@@ -32,7 +40,10 @@ research/
 │   └── utils.py
 ├── tests/
 ├── results/                       # directory markers only
+├── Dockerfile
+├── Makefile
 ├── requirements.txt
+├── requirements.lock
 └── README.md
 ```
 
@@ -264,6 +275,49 @@ Ratio metrics are ratios (multiply by 100 to display percentages). Overall
 averages pool origin×node×horizon entries; overlapping geographic/family
 aggregate levels require the reported per-type breakdowns for interpretation.
 
+## Final paper evaluation (no training)
+
+The final conference-paper extraction evaluates only the existing saved
+checkpoints for ISOMORPH and SupplyGraph. It performs forward passes only:
+there is no optimizer, scheduler, training epoch, hyperparameter search, or Job
+C execution in this stage. `paper_evaluation.py` uses the saved checkpoint
+scalers, split ranges, node order, graph, lookback 14, and horizon 7. It writes
+the seven required CSV deliverables to `paper_outputs/`.
+
+Checkpoints and processed data are intentionally not part of this repository.
+To reproduce the evaluation, download them from the authorized Drive location
+using a token stored outside the repository:
+
+```bash
+python download_drive_artifacts.py \
+  --token-file "$DRIVE_TOKEN_FILE" \
+  --drive-root-folder-id "$DRIVE_ROOT_FOLDER_ID" \
+  --output drive_artifacts
+python paper_evaluation.py --artifacts drive_artifacts --output paper_outputs
+python run_statistical_pipeline.py --artifacts drive_artifacts --output paper_outputs
+python generate_figures.py --output paper_outputs
+python verify_deliverables.py --output paper_outputs
+```
+
+Never place `drive_token.json`, OAuth client JSON, private keys, model
+checkpoints, or raw data in Git. The ignore rules protect common credential
+names and `drive_artifacts/`, but the final check must still be performed with
+`git status`, `git diff --cached`, and a secret scan before publishing.
+
+## Local verification and container build
+
+The runtime is pinned by `.python-version` and `requirements.lock`. After
+installing the lockfile in a project-local environment:
+
+```bash
+make test
+docker build -t supply-chain-research .
+docker run --rm supply-chain-research
+```
+
+The Docker image runs the offline test suite by default. It does not contain
+Drive credentials or private research artifacts.
+
 ## Local verification and Git
 
 WSL checks with no ML dependencies:
@@ -295,7 +349,9 @@ git push -u origin research/initial-pipeline
 ```
 
 Do not paste a token into a command, notebook, or this repository. Raw data,
-checkpoints, logs, predictions, credentials, and generated metrics are ignored.
+checkpoints, logs, predictions, and credentials are ignored; reviewed paper
+tables and figures under `paper_outputs/` are the intentional published
+artifacts.
 `main` has not been merged or modified. Public GitHub read access does not
 authorize writing to the repository.
 

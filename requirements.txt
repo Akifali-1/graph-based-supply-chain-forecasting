@@ -8,3 +8,7 @@ matplotlib>=3.7
 seaborn>=0.12
 py7zr>=1.0,<2
 pytest>=7.4
+tabulate>=0.10
+google-api-python-client>=2.150
+google-auth>=2.30
+google-auth-httplib2>=0.2
