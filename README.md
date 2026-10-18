@@ -1,369 +1,134 @@
 # Adaptive STGT vs Adaptive Fusion GAT-LSTM for Interpretable Supply Chain Demand Forecasting
 
-Semi-automated, reproducible comparison against a **project-reference STGT**.
-Code lives in GitHub; datasets/artifacts live in Google Drive; large processing
-and model experiments run in an interactively authorized Google Colab session.
+Semi-automated, reproducible benchmark comparison for graph-based multi-echelon supply chain demand forecasting.
+Code is versioned in GitHub; model checkpoints and large data artifacts live in private Drive storage; large processing and model campaigns run in an authorized execution runtime.
 
-**Status:** The training campaigns and the no-training paper evaluation are
-complete for ISOMORPH and SupplyGraph. Final evaluation tables and figures are
-stored in `paper_outputs/`; model checkpoints and processed inputs remain in
-private Drive storage and are never committed. Favorita is excluded from the
-final paper evaluation. The SupplyGraph real-graph Job B reproduction gate is
-recorded as incomplete rather than claimed as passed. See
-`RESEARCH_STATUS.md` for the artifact audit and limitations.
+**Status:** The experimental campaigns and reproducible paper evaluation are complete for the benchmark datasets: **ISOMORPH** and **SupplyGraph**. Final evaluation tables and publication figures are stored in `paper_outputs/`; model checkpoints and raw inputs remain in private Drive storage and are never committed. The SupplyGraph real-graph Job B reproduction gate is recorded as incomplete rather than claimed as passed. See `RESEARCH_STATUS.md` for the artifact audit and limitations.
 
-## Structure
+## Repository Structure
 
 ```text
-research/
-├── configs/experiment.yaml        # seed, shared protocol, hard limits
-├── configs/search_space.yaml      # search disabled until baseline evidence
-├── data/raw/                      # local source archives, ignored by Git
-├── data/processed/                # generated/versioned data, ignored
-├── notebooks/colab_experiment.ipynb
-├── orchestrator.py                # Colab/Drive/push/quality/budget gates
-├── download_drive_artifacts.py    # token-path parameterized Drive downloader
-├── paper_evaluation.py             # no-training validation/test extraction
-├── run_statistical_pipeline.py     # window/time-aware paper statistics
-├── generate_figures.py             # reviewed paper figures
-├── paper_outputs/                  # reviewed aggregate tables and figures
+graph-based-supply-chain-forecasting/
+├── configs/
+│   ├── experiment.yaml              # shared seed, protocol, and model parameters
+│   ├── graph_ablation.yaml          # real vs permuted graph ablation config
+│   ├── isomorph_campaign_12.yaml    # ISOMORPH multi-seed campaign configuration
+│   └── search_space.yaml            # search constraints and budget
+├── data/
+│   ├── raw/                         # source data directory (ignored by Git)
+│   └── processed/                   # processed cache directory (ignored by Git)
+├── notebooks/
+│   └── colab_experiment.ipynb      # interactive runtime harness
+├── paper_outputs/                   # reviewed aggregate paper tables and figures
+│   ├── fig1_architecture.{png,pdf}
+│   ├── fig2_horizon_and_roles.{png,pdf}
+│   ├── fig3_gate_topology.{png,pdf}
+│   ├── paper_compute_cost.csv
+│   ├── paper_gate_summary.csv
+│   ├── paper_gate_weights.csv
+│   ├── paper_horizon_metrics.csv
+│   ├── paper_job_b_gate_status.json
+│   ├── paper_job_b_paired.csv
+│   ├── paper_main_metrics.csv
+│   ├── paper_node_regime_metrics.csv
+│   ├── paper_rigorous_stats.csv
+│   ├── paper_summary_stats.csv
+│   └── paper_window_significance.csv
 ├── src/
-│   ├── preprocessing.py
-│   ├── dataset.py
-│   ├── stgt.py
-│   ├── gat_lstm.py
-│   ├── train.py
-│   ├── evaluate.py
-│   ├── checkpointing.py
-│   ├── experiment_registry.py
-│   ├── metrics.py
-│   └── utils.py
-├── tests/
-├── results/                       # directory markers only
-├── Dockerfile
-├── Makefile
-├── requirements.txt
-├── requirements.lock
+│   ├── checkpointing.py             # state saving and atomic checkpoints
+│   ├── dataset.py                   # rolling-window multi-horizon PyTorch dataset
+│   ├── day2_ablation.py             # temporal-only, spatial-only, and fixed-fusion models
+│   ├── evaluate.py                  # multi-metric forward-pass evaluation
+│   ├── evaluation_recovery.py       # safe checkpoint resume logic
+│   ├── experiment_registry.py       # persistent experiment registry
+│   ├── gat_lstm.py                  # GAT-LSTM baseline architecture
+│   ├── metrics.py                   # MAE, RMSE, WAPE, sMAPE, R2, and Masked MAPE
+│   ├── preprocessing.py             # per-node normalization and graph construction
+│   ├── stgt.py                      # STGT and proposed Adaptive STGT architectures
+│   ├── train.py                     # training loop with early stopping
+│   └── utils.py                     # graph indexing and batch helpers
+├── tests/                           # comprehensive test suite (unit and synthetic)
+├── Dockerfile                       # isolated reproducible execution container
+├── Makefile                         # standard test and evaluation targets
+├── requirements.txt                 # package dependencies
+├── requirements.lock                # pinned reproducible dependency lockfile
+├── download_drive_artifacts.py      # token-path parameterized Drive downloader
+├── paper_evaluation.py              # zero-training forward pass paper evaluation
+├── run_statistical_pipeline.py      # block bootstrap and window significance pipeline
+├── generate_figures.py              # 300-DPI PNG and vector PDF publication figures
+├── verify_deliverables.py           # deliverable schema and gate assertion verifier
+├── RESEARCH_STATUS.md               # research status and reproduction audit
+├── SECURITY.md                      # credential and privacy protection policy
 └── README.md
 ```
 
-## Dataset and source preservation
+## Benchmark Datasets
 
-The local Favorita ZIP contains eight `.7z` archives:
-`train.csv.7z`, `test.csv.7z`, `items.csv.7z`, `stores.csv.7z`,
-`transactions.csv.7z`, `oil.csv.7z`, `holidays_events.csv.7z`,
-`sample_submission.csv.7z` (approximately 480 MB in total).
+The study evaluates multi-echelon forecasting across two benchmark supply chain graphs:
 
-Inspected metadata headers confirm **Corporación Favorita Grocery Sales
-Forecasting**: items contain `item_nbr,family,class,perishable`; stores contain
-`store_nbr,city,state,type,cluster`. Preprocessing checks train columns
-`id,date,store_nbr,item_nbr,unit_sales` when reading the CSV. The large train
-CSV has not been locally expanded. Preserve all eight archives, including
-metadata/covariate files unused by the initial comparison. Nothing is deleted.
+1. **ISOMORPH Benchmark**:
+   - 13 interconnected supply chain nodes.
+   - Distinct echelons including Factories, Central Warehouses, Regional Distribution Centers, and Retail Outlets.
+   - Multi-step demand forecasting ($H = 7$) with a 14-day observation lookback window ($L = 14$).
 
-Upload either those eight archives, eight extracted CSVs, or the original
-`favorita-grocery-sales-forecasting.zip` to the Drive raw folder below. The
-preflight recognizes a single nested source folder, accepts mixed CSV/7z
-layouts, and can unpack the **outer ZIP only**, leaving the large train 7z
-compressed. Original ZIP/source files are preserved. If the ZIP is elsewhere
-in Drive, set `SOURCE_ZIP` in the notebook to its exact path.
+2. **SupplyGraph Benchmark**:
+   - 39 interconnected supply chain entities.
+   - Complex topological relationships across multiple product categories and tier suppliers.
+   - Evaluated under identical multi-horizon ($H = 7$) and lookback ($L = 14$) configurations.
 
-Files absent from Drive cannot be recovered from local Windows paths in Colab.
-For missing-source errors, inspect the printed raw-folder listing, correct
-`RAW_DIR`, or upload the ZIP; do not fabricate an empty missing source.
+Chronological split protocol: 70% Train, 15% Validation, and 15% Test. All metrics are computed in original inverse-scaled physical units with demand clipped at 0.0 ($y \ge 0$).
 
-Drive layout:
+## Model Architectures
 
-```text
-MyDrive/supply_chain_research/
-├── data/raw/                      # all eight original archives
-├── data/processed/<version>/      # output + completion/data-quality manifests
-├── experiment_registry.json      # durable budget and attempts
-└── experiments/
-    ├── <model>-<signature>-attempt1/
-    │   ├── config.yaml
-    │   ├── runtime.json
-    │   ├── dataset_manifest.json
-    │   ├── training.log
-    │   ├── checkpoints/{best,latest}.pt
-    │   ├── logs/history.json
-    │   ├── predictions/validation.npz
-    │   └── metrics/validation.json
-    └── final_test/                # frozen selection, test predictions/report
-```
+- **Reference STGT**: Temporal Transformer encoder, learnable positional encoding, node-type embeddings, dual `TransformerConv` spatial layers, and direct multi-horizon forecasting head.
+- **Adaptive STGT (Proposed)**: Features a dynamic per-node gating mechanism ($\alpha_i$) that adaptively fuses temporal sequence features ($h_i^{\text{temp}}$) and spatial relational graph features ($h_i^{\text{spat}}$) based on local topology and degree regimes:
+  $$\hat{h}_i = \alpha_i h_i^{\text{temp}} + (1 - \alpha_i) h_i^{\text{spat}}$$
+- **GAT-LSTM**: Bidirectional LSTM temporal encoder combined with multi-head Graph Attention Networks (GAT).
+- **Ablation Controls**:
+  - *Temporal-Only STGT*: Temporal attention without spatial message passing.
+  - *Spatial-Only STGT*: Graph message passing driven by instantaneous inputs without temporal attention.
+  - *Fixed Fusion STGT*: Uniform static equal-weight fusion ($\alpha_i = 0.5$).
+  - *Job B Graph Ablation (Permuted)*: STGT trained on edge-permuted topologies to measure structural informativeness.
 
-The Colab preflight hashes the selected CSV or 7z sources, checks inner member names/sizes,
-and validates the schemas of all eight files through bounded header reads.
-Compressed train/test headers are decoded without extracting their complete
-CSV bodies. When both representations exist, 7z is the
-consistent preference of preflight and preprocessing. This is **not** a claim of a
-full CRC scan of the large train archive. Its full extraction in Colab checks
-integrity before a processed completion marker can exist or training can start.
+## Reproducing Paper Deliverables (Zero Training)
 
-## Preprocessing and graph semantics
-
-State is used as **Region** (Favorita has no region field). Each geographic
-region, state-qualified city, store, and **global** product family is one node.
-Region→City and City→Store edges are metadata relationships. Store→Family
-edges connect each metadata store to each metadata family; they are not chosen
-using validation/test sales. Families aggregate across all stores. Consequently
-this is a typed aggregation graph, **not a strict summation tree** at the
-Store→Family level; parent-child consistency loss is not appropriate as-is.
-
-Node IDs are deterministic; slug collisions and missing/duplicate metadata
-keys cause errors. Source IDs/dates must be ordered; duplicate/unordered IDs
-are rejected across chunk boundaries. Distinct ledger rows with the same
-business key are summed; within-chunk duplicate business-key rows are counted.
-This is not global deduplication of legitimate ledger entries.
-
-Chunked processing aggregates into a small `[dates,nodes]` float64 matrix, not
-an 80-million-row in-memory table. Negative sales/returns are counted and
-clipped to zero for the shared nonnegative-demand task. Invalid dates, sales,
-and unknown item/store references stop preprocessing rather than becoming zero.
-
-The explicit default `zero` policy interprets an absent aggregate ledger cell
-as **zero recorded sales**, not as imputed latent demand. It is a documented
-modeling assumption. Use `missing_policy: error` to reject absent cells. Actual
-zero and missing cells are separately tracked. The timeline ends at the last
-labeled date, never at a manufactured future zero-filled date.
-
-| Output | Schema |
-|---|---|
-| `nodes.csv` | `node_id,node_type,label,parent_id`, optional region/city/store/family metadata |
-| `edges.csv` | `source,target,edge_type` (unique, no self-loops) |
-| `sales.csv` | `Date`, then one numeric column per `node_id` |
-| `data_quality.json` | date range, counts, policies, graph/source validation information |
-
-CSV extraction uses a Colab-local cache; raw Drive archives remain unchanged.
-Cached CSVs are source-hash-namespaced, CRC/SHA-256 verified, and checked against
-recorded checksums on every reuse. Unique temporary extraction directories
-prevent a stale extraction directory from blocking recovery. Suspect existing
-cache files are preserved; only this invocation's failed scratch is cleaned.
-Processed outputs are versioned. Completed versions are hash-verified and
-reused. Incomplete preprocessing stops for inspection; choose a new processed
-base for an explicit restart, keeping the incomplete logs.
-
-For manual **Colab-only** preprocessing after validation:
+All paper results and figures can be verified directly without training any model:
 
 ```bash
-python src/preprocessing.py \
-  --raw-dir /content/drive/MyDrive/supply_chain_research/data/raw \
-  --cache-dir /content/favorita-csv-cache \
-  --processed-dir /content/drive/MyDrive/supply_chain_research/data/processed/manual-v1 \
-  --start-date 2015-01-01 --end-date 2017-08-15 --chunksize 500000
-```
-
-Prefer the notebook's `prepare_data` stage, which also produces the required
-raw/processed provenance and completion markers.
-
-## Architecture and comparison protocol
-
-**ReferenceSTGT:** the supplied Colab project implementation: temporal
-Transformer encoder, learnable positional encoding and temporal pooling,
-node-type embedding, two `TransformerConv` spatial layers, direct forecast
-head. The horizon extension changes the output from one value to `H` values.
-No identified original STGT paper has been verified; this is transparently a
-project-reference baseline, not a claimed published-model reproduction.
-
-**AdaptiveSTGT:** the same reference STGT temporal encoder, node-type metadata,
-graph layers, and direct forecast head, with one learned per-node scalar gate
-between its temporal-with-metadata state and spatial graph state. The gate uses
-branch normalization and a compact MLP; its two weights sum to one. It does
-not add learned graph construction or another temporal-attention module.
-
-**AdaptiveFusionGATLSTM:** supplied optimized design: BiLSTM, temporal
-attention pooling, LayerNorm, stacked multi-head GAT with projected residual,
-adaptive scalar temporal/spatial fusion gate, and prediction MLP. Temporal
-attention is before GAT/fusion, matching the supplied code. Gate weights are
-available through `return_attention=True`; they are model diagnostics, not
-causal explanations. Input perturbation is disabled in the initial experiment.
-
-Both models accept `x=[B,N,L,1]` and return `[B,N,H]`. Graph nodes are ordered
-identically. Batched edges are offset for each independent time-window graph,
-so attention cannot mix different windows. Types are available from shared
-metadata; the reference baseline uses an embedding, the proposed architecture
-does not. Edge labels are documented but unused by both initial spatial layers.
-
-Initial protocol (`configs/experiment.yaml`):
-
-- seeds 42, 123, and 2026 for the initial three-seed comparison;
-- 14-day history and 7-day **direct** multi-step horizon;
-- chronological 70%/15%/15% train/validation/test;
-- all metadata nodes, identical forecast origins and targets;
-- no smoothing, full-series outlier filtering, or future-dependent pruning;
-- per-node StandardScaler fit on training dates only;
-- shared Huber loss, AdamW, epoch limit, scheduler and early-stopping rule;
-- residual/EMA adapter disabled for both; enabled adapter currently supports
-  horizon 1 only, explicitly rejecting unsafe multi-step residual construction.
-
-Targets in an earlier split cannot extend into the next split. Validation/test
-inputs may use already observed past dates across a boundary. Test evaluation
-is rolling-origin: later test forecasts use past observed test values, never
-future values for that origin. Overlapping multi-horizon forecast tasks are
-not independent samples, and this is not one long open-loop rollout.
-
-Models have different parameter counts; equal epochs and shared rules are a
-comparable starting budget, not exact FLOP parity. Report both counts/times.
-GPU scatter/reduction kernels can remain nondeterministic; deterministic
-settings warn rather than falsely guaranteeing identical GPU results.
-
-## Budget, interruption, and artifact integrity
-
-Hard caps: **10 submitted training attempts**, one active run, **2 retries** per
-signature. Failed/interrupted submitted attempts also consume slots. Rejected
-preflight attempts do not. The initial three-model × three-seed campaign uses
-nine slots before retries.
-No automatic budget increases or paid resources are used.
-
-Job limit: 7200 seconds. Campaign limit: 21600 seconds from its first training
-submission. The persisted deadline cannot reset on Colab reconnection.
-Completed signatures skip even at a spent budget; missing/corrupted completed
-artifacts stop execution rather than triggering hidden retraining.
-
-Every epoch atomically saves weights, optimizer/scheduler, best validation
-state, history, and Python/NumPy/Torch RNG states on Drive. `RETRY` authorizes
-a new counted attempt that resumes after the last committed epoch. A partial
-epoch is explicitly replayed. If no epoch checkpoint exists, `RESTART` is an
-explicit counted restart, not a silent retry. Old attempt directories remain.
-
-Confirm no old process is alive before typing `RECOVER` for stale active
-records. A stale `.lock` after interruption stops safely: inspect it and confirm
-all users/runtimes are inactive before manually resolving it. One authorized
-Colab session should control this registry; Drive does not provide a tested
-multi-machine distributed locking service here.
-
-## Live training logs
-
-Training stdout/stderr is streamed live to the Colab cell and saved to the
-attempt's `training.log`. Logs include experiment/device/window counts,
-batch progress, epoch train/validation loss, best loss, patience, learning rate,
-elapsed time, and checkpoint location. A silent/hung child still respects the
-configured timeout. This applies to newly launched processes; an already
-running process from an older commit retains its original logging behavior.
-
-## Notebook stages
-
-Open `notebooks/colab_experiment.ipynb` from branch `research/initial-pipeline`.
-The Adaptive STGT campaign uses the separate Drive registry
-`experiment_registry_adaptive_stgt_campaign.json` and artifact root
-`experiments/adaptive_stgt_campaign/`; the original two-model registry and
-frozen final-test directory remain preserved.
-
-1. Clone/reuse the repository and verify clean source matches the pushed branch.
-2. Mount Drive **interactively**. Upload the archives if absent.
-3. Install dependencies, print GPU/RAM/disk/package versions, run synthetic tests.
-4. Verify archives, registry state, and remaining budget.
-5. Type `PREPROCESS` to prepare or verify the versioned processed dataset.
-6. Create the portable Drive-path experiment configuration.
-7. Type `RUN` for sequential validation-only training; `RETRY`/`RESTART` is explicit.
-8. Review validation reports. Type `TEST` and choose one completed run ID for
-   every model and configured seed only after configurations are final. The
-   selection is frozen before test access. Final artifacts are verified/reused,
-   not overwritten.
-
-Final outputs: `experiments/final_test/stages/report/model_comparison.csv`,
-`model_comparison_summary.csv`, per-type/per-horizon JSON, `comparison_report.md`,
-`comparison.png`, and test per-model/seed
-`stages/<model>_seed<seed>/predictions.npz` files with node names, dates, and target indices. No metrics are
-invented; these files appear only after the actual authorized evaluation.
-
-Metrics are calculated on original units with predictions clipped to zero:
-MAE, MSE, RMSE; WAPE=sum absolute errors/sum absolute actuals; sMAPE averages
-2|error|/(|actual|+|prediction|) with 0/0=0; pooled R²; MAPE only for actual>0.1,
-with valid fraction. Undefined WAPE/MAPE/R² are NaN, not a misleading zero.
-Ratio metrics are ratios (multiply by 100 to display percentages). Overall
-averages pool origin×node×horizon entries; overlapping geographic/family
-aggregate levels require the reported per-type breakdowns for interpretation.
-
-## Final paper evaluation (no training)
-
-The final conference-paper extraction evaluates only the existing saved
-checkpoints for ISOMORPH and SupplyGraph. It performs forward passes only:
-there is no optimizer, scheduler, training epoch, hyperparameter search, or Job
-C execution in this stage. `paper_evaluation.py` uses the saved checkpoint
-scalers, split ranges, node order, graph, lookback 14, and horizon 7. It writes
-the seven required CSV deliverables to `paper_outputs/`.
-
-Checkpoints and processed data are intentionally not part of this repository.
-To reproduce the evaluation, download them from the authorized Drive location
-using a token stored outside the repository:
-
-```bash
+# 1. Download verified artifacts (using external Drive credentials)
 python download_drive_artifacts.py \
   --token-file "$DRIVE_TOKEN_FILE" \
   --drive-root-folder-id "$DRIVE_ROOT_FOLDER_ID" \
   --output drive_artifacts
+
+# 2. Extract unified metrics and gate tables
 python paper_evaluation.py --artifacts drive_artifacts --output paper_outputs
+
+# 3. Compute time-aware block bootstrap and window significance
 python run_statistical_pipeline.py --artifacts drive_artifacts --output paper_outputs
+
+# 4. Generate 300-DPI publication figures (PNG and vector PDF)
 python generate_figures.py --output paper_outputs
+
+# 5. Programmatically verify deliverables and gate conditions
 python verify_deliverables.py --output paper_outputs
 ```
 
-Never place `drive_token.json`, OAuth client JSON, private keys, model
-checkpoints, or raw data in Git. The ignore rules protect common credential
-names and `drive_artifacts/`, but the final check must still be performed with
-`git status`, `git diff --cached`, and a secret scan before publishing.
+## Local Testing and Environment
 
-## Local verification and container build
-
-The runtime is pinned by `.python-version` and `requirements.lock`. After
-installing the lockfile in a project-local environment:
+Using the pinned dependencies in `requirements.lock`:
 
 ```bash
+# Run the complete test suite
 make test
-docker build -t supply-chain-research .
-docker run --rm supply-chain-research
-```
 
-The Docker image runs the offline test suite by default. It does not contain
-Drive credentials or private research artifacts.
-
-## Local verification and Git
-
-WSL checks with no ML dependencies:
-
-```bash
-python3 -m compileall -q src tests orchestrator.py
-python3 -m unittest discover -s tests -p 'test_registry_stdlib.py' -v
-```
-
-Full CPU synthetic tests, after dependencies exist:
-
-```bash
+# Or via pytest directly
 python -m pytest -q
 ```
 
-Tests never load the real dataset or train a model. They cover tiny chunked
-preprocessing, indexing/window leakage, forward-pass batch isolation and loss,
-train-only scaling, checkpoint/RNG round trips, budget/retry/concurrency,
-completed skips, persistent deadlines, and notebook cell syntax/order.
-The controller also runs the complete synthetic quality gate before reserving
-an expensive attempt. Local ML-dependent tests currently skip until Colab
-installs PyTorch/PyG.
-
-Git source is committed on `research/initial-pipeline`. Authenticate using your
-chosen GitHub credential manager, then push:
+Or using Docker:
 
 ```bash
-git push -u origin research/initial-pipeline
+docker build -t supply-chain-research .
+docker run --rm supply-chain-research
 ```
-
-Do not paste a token into a command, notebook, or this repository. Raw data,
-checkpoints, logs, predictions, and credentials are ignored; reviewed paper
-tables and figures under `paper_outputs/` are the intentional published
-artifacts.
-`main` has not been merged or modified. Public GitHub read access does not
-authorize writing to the repository.
-
-There is no tested direct Colab API/MCP/Drive integration in this environment.
-The first Drive authorization is a user action. This project prepares and
-controls an authorized session; **unattended remote execution is not claimed**.
-
-## Reliability review and final-test recovery
-
-See `RELIABILITY_REVIEW.md` for the verified bug/design classification and exact
-recovery procedure. The final-test cell accepts `EVAL_RESUME` for an interrupted
-evaluation of the same frozen model/seed selection. It verifies and reuses completed model
-stages and runs only missing stages. Corrupt completed results are never silently
-replaced. A compatible evaluation-only code upgrade for older checkpoints needs
-explicit `COMPATIBLE_UPGRADE`; training provenance remains unchanged.
