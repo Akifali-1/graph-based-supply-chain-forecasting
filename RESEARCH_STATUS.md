@@ -1,5 +1,31 @@
 # Research status and unresolved details
 
+## Current conference-paper campaign
+
+The current paper evaluation is restricted to **ISOMORPH** and
+**SupplyGraph**; Favorita is excluded from the final comparison. Existing Drive
+checkpoints were evaluated with forward passes only. No training epochs,
+hyperparameter searches, or Job C scripts were run for this extraction.
+
+Verified published artifacts are in `paper_outputs/`:
+
+- unified validation/test metrics and mean/sample-standard-deviation summaries;
+- Job B real-vs-permuted paired tests;
+- horizon, node-role/sparsity, learned-gate, and compute-cost tables;
+- window-level significance and rigorous time-aware statistics;
+- 300-DPI PNG/PDF paper figures.
+
+The six Job B permuted STGT runs are complete on Drive. The separate
+`job_b_pipeline_real_supplygraph_v2` seed-42 reproduction gate remains
+interrupted with no final result row, so it is explicitly recorded as **not
+passed** rather than silently inferred from another run.
+
+Drive tokens, OAuth client files, checkpoints, raw data, and downloaded private
+artifacts are not repository contents. The repository includes only portable
+code, reviewed aggregate outputs, documentation, and tests.
+
+## Historical initial-pipeline evidence
+
 ## Evidence available
 
 - Supplied Favorita archives and small CSV metadata schemas.
@@ -34,7 +60,7 @@ attention placement follows the supplied code (temporal pooling before GAT and
 fusion), not an invented post-fusion sequence. The original paper's dataset
 statistics and claimed results are not reused as results from this experiment.
 
-## Current experiment plan
+## Historical initial experiment plan
 
 1. Push the dedicated branch after user GitHub authentication.
 2. Authorize Colab Drive mount and upload all source archives.

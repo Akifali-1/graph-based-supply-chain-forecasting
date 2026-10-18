@@ -1,0 +1,10 @@
+{
+  "campaign": "job_b_pipeline_real_supplygraph_v2",
+  "run": "supplygraph_stgt_real_seed42",
+  "status": "interrupted",
+  "last_committed_epoch": 2,
+  "complete_json": false,
+  "result_row": false,
+  "gate_passed": false,
+  "reason": "Drive run has recovery.json/checkpoints but no complete.json or final result row."
+}

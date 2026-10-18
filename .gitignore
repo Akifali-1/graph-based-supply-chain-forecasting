@@ -5,11 +5,19 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+.mypy_cache/
+.ruff_cache/
 
 # Secrets and local configuration
 .env
 .env.*
 !.env.example
+drive_token.json
+*_token.json
+client_secret*.json
+credentials*.json
+*.pem
+*.key
 
 # Large raw and generated data; keep directory markers only
 data/raw/*
@@ -30,6 +38,11 @@ results/logs/*
 *.ckpt
 *.pkl
 *.joblib
+
+# Private Drive downloads and reproducible local logs
+drive_artifacts/
+paper_evaluation_console.md
+*.log
 
 # Local OS/editor files
 .DS_Store
