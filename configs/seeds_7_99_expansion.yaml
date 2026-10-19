@@ -1,0 +1,73 @@
+seeds: [7, 99]
+deterministic: true
+
+experiment:
+  name: seeds_7_99_expansion
+  allow_execution: true
+  max_job_seconds: 7200
+
+training:
+  batch_size: 4
+  epochs: 100
+  patience: 15
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  loss: huber
+  huber_delta: 1.0
+  scheduler_factor: 0.5
+  scheduler_patience: 8
+
+models:
+  temporal_only:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  spatial_only:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  stgt:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  stgt_permuted:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+    graph_seed: 0
+  adaptive_stgt:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+
+datasets:
+  isomorph:
+    data:
+      processed_dir: drive_artifacts/isomorph
+      scaler: standard
+      train_ratio: 0.70
+      validation_ratio: 0.15
+      lookback: 14
+      horizon: 7
+      undirected_graph: false
+      use_residual_baseline: false
+      graph_edge_types:
+      - directed_route
+  supplygraph:
+    data:
+      processed_dir: drive_artifacts/supplygraph
+      scaler: standard
+      train_ratio: 0.70
+      validation_ratio: 0.15
+      lookback: 14
+      horizon: 7
+      undirected_graph: true
+      use_residual_baseline: false
+      graph_edge_types:
+      - shared_plant

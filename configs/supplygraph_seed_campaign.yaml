@@ -1,0 +1,68 @@
+seed: 42
+seeds: [42, 123, 2026, 7, 99]
+deterministic: true
+
+experiment:
+  name: supplygraph_sales_order_plant_campaign
+  max_gpu_runs: 25
+  one_active_run: true
+  max_job_seconds: 7200
+  allow_execution: true
+
+data:
+  processed_dir: data/supplygraph
+  scaler: standard
+  train_ratio: 0.70
+  validation_ratio: 0.15
+  lookback: 14
+  horizon: 7
+  undirected_graph: true
+  use_residual_baseline: false
+  graph_edge_types:
+  - shared_plant
+
+training:
+  batch_size: 4
+  epochs: 100
+  patience: 15
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  loss: huber
+  huber_delta: 1.0
+  scheduler_factor: 0.5
+  scheduler_patience: 8
+
+models:
+  temporal_only:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  spatial_only:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  stgt:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  stgt_permuted:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+  adaptive_stgt:
+    d_model: 64
+    temporal_heads: 2
+    spatial_heads: 4
+    dropout: 0.30
+
+outputs:
+  checkpoint_dir: results/supplygraph/checkpoints
+  metrics_dir: results/supplygraph/metrics
+  predictions_dir: results/supplygraph/predictions
+  logs_dir: results/supplygraph/logs
+  drive_artifact_root: results/supplygraph

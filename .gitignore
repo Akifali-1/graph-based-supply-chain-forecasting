@@ -24,6 +24,11 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/isomorph/
+data/supplygraph/
+
+# Local utility scripts
+local_scripts/
 
 # Experiment outputs and checkpoints
 results/checkpoints/

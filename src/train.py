@@ -18,7 +18,6 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from dataset import GraphWindowDataset, make_loader
-from gat_lstm import AdaptiveFusionGATLSTM
 from metrics import forecasting_metrics, metrics_by_horizon, metrics_by_node_type
 from stgt import AdaptiveSTGT, ReferenceSTGT
 from day2_ablation import DAY2_VARIANTS, FixedFusionSTGT, SpatialOnlySTGT, TemporalOnlySTGT
@@ -29,6 +28,7 @@ from utils import (
     load_yaml,
     model_parameter_count,
     node_type_ids,
+    permute_edge_index,
     read_processed_data,
     save_json,
     set_seed,
@@ -60,8 +60,22 @@ class ExperimentData:
             if self.edges.empty:
                 raise ValueError("Configured graph edge types produced an empty graph")
         self.edge_index = build_edge_index(self.nodes, self.edges, data_config.get("undirected_graph", True))
+        is_permuted = (
+            config.get("model") == "stgt_permuted"
+            or config.get("graph_variant") == "permuted"
+            or data_config.get("graph_seed") is not None
+            or config.get("graph_seed") is not None
+        )
+        if is_permuted:
+            graph_seed = data_config.get("graph_seed", config.get("graph_seed", 0))
+            self.edge_index = permute_edge_index(self.edge_index, len(self.nodes), graph_seed=int(graph_seed))
         self.dates = pd.to_datetime(self.sales["Date"]).dt.strftime("%Y-%m-%d").tolist()
         raw_series = self.sales[self.node_names].to_numpy(dtype=np.float32).T
+        max_time_steps = data_config.get("max_time_steps") or data_config.get("max_steps") or config.get("max_time_steps") or config.get("max_steps")
+        if max_time_steps is not None:
+            max_time_steps = int(max_time_steps)
+            raw_series = raw_series[:, :max_time_steps]
+            self.dates = self.dates[:max_time_steps]
         self.num_nodes, self.num_steps = raw_series.shape
         self.lookback = int(data_config["lookback"])
         self.horizon = int(data_config["horizon"])
@@ -110,9 +124,14 @@ class ExperimentData:
 
 
 def build_model(model_name: str, config: Dict[str, Any], data: ExperimentData) -> torch.nn.Module:
-    model_config = dict(config["models"][model_name])
+    model_cfg = config["models"].get(model_name)
+    if model_cfg is None and model_name == "stgt_permuted":
+        model_cfg = config["models"].get("stgt", {})
+    model_config = dict(model_cfg or {})
+    for non_model_key in ("graph_seed", "graph_mode", "graph_variant"):
+        model_config.pop(non_model_key, None)
     common = {"lookback": data.lookback, "horizon": data.horizon}
-    if model_name == "stgt":
+    if model_name in {"stgt", "stgt_permuted"}:
         return ReferenceSTGT(**common, **model_config)
     if model_name == "adaptive_stgt":
         return AdaptiveSTGT(**common, **model_config)
@@ -122,13 +141,11 @@ def build_model(model_name: str, config: Dict[str, Any], data: ExperimentData) -
         return SpatialOnlySTGT(**common, **model_config)
     if model_name == "fixed_fusion":
         return FixedFusionSTGT(**common, **model_config)
-    if model_name == "gat_lstm":
-        return AdaptiveFusionGATLSTM(**common, **model_config)
     raise ValueError(f"Unsupported model: {model_name}")
 
 
 def _call_model(model_name: str, model: torch.nn.Module, batch: Dict[str, torch.Tensor], edge_index, node_types):
-    if model_name in {"stgt", "adaptive_stgt", *DAY2_VARIANTS}:
+    if model_name in {"stgt", "stgt_permuted", "adaptive_stgt", *DAY2_VARIANTS}:
         return model(batch["x"], edge_index, node_types)
     return model(batch["x"], edge_index)
 
@@ -389,9 +406,11 @@ def train_model(model_name: str, config: Dict[str, Any], project_root: Path, res
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/experiment.yaml"))
-    parser.add_argument("--model", choices=["stgt", "adaptive_stgt", "gat_lstm", *DAY2_VARIANTS], required=True)
+    parser.add_argument("--model", choices=["stgt", "stgt_permuted", "adaptive_stgt", *DAY2_VARIANTS], required=True)
     parser.add_argument("--project-root", type=Path, default=Path("."))
     parser.add_argument("--resume", type=Path, default=None)
+    parser.add_argument("--max-steps", "--max-time-steps", type=int, default=None,
+                        help="Optional chronological truncation of time steps (e.g. 221)")
     return parser
 
 
@@ -399,9 +418,12 @@ if __name__ == "__main__":
     arguments = build_parser().parse_args()
     root = arguments.project_root.resolve()
     configuration = load_yaml(root / arguments.config)
+    if arguments.max_steps is not None:
+        configuration.setdefault("data", {})["max_time_steps"] = arguments.max_steps
     try:
         report = train_model(arguments.model, configuration, root, arguments.resume)
         print(report)
     except TimeoutError as exc:
         print(f"Training time limit reached: {exc}; latest committed checkpoint is preserved", flush=True)
         raise SystemExit(124)
+

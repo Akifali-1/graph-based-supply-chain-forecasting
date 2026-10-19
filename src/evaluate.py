@@ -174,7 +174,7 @@ if __name__ == "__main__":
             int(seed_text)
         except ValueError as exc:
             raise SystemExit(f"Invalid checkpoint specification: {specification}") from exc
-        if stage_name in paths or model_name not in {"stgt", "adaptive_stgt", "gat_lstm"}:
+        if stage_name in paths or model_name not in {"stgt", "adaptive_stgt", "temporal_only", "spatial_only", "stgt_permuted"}:
             raise SystemExit(f"Invalid or duplicate checkpoint stage: {stage_name}")
         paths[stage_name] = (model_name, Path(path))
     print(compare_checkpoints(config, args.project_root.resolve(), paths).to_string(index=False))

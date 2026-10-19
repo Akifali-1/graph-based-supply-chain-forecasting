@@ -255,7 +255,7 @@ def scientific_source_fingerprint(root, revision, model_names=None):
     different models or target semantics under the same frozen selection.
     """
     values = {}
-    selected_models = set(model_names or ("stgt", "adaptive_stgt", "gat_lstm"))
+    selected_models = set(model_names or ("stgt", "adaptive_stgt"))
     train_names = {"ExperimentData", "_absolute_arrays", "evaluate_loader"}
 
     def module_nodes(source, names=None):
@@ -269,8 +269,6 @@ def scientific_source_fingerprint(root, revision, model_names=None):
     modules = ["dataset", "metrics", "utils", "train"]
     if "stgt" in selected_models or "adaptive_stgt" in selected_models:
         modules.append("stgt")
-    if "gat_lstm" in selected_models:
-        modules.append("gat_lstm")
     for name in modules:
         source = subprocess.check_output(["git", "-C", str(root), "show", f"{revision}:src/{name}.py"], text=True)
         if name == "train":
@@ -282,8 +280,6 @@ def scientific_source_fingerprint(root, revision, model_names=None):
             if "adaptive_stgt" in selected_models:
                 names |= {"AdaptiveSTGTFusion", "AdaptiveSTGT"}
             tree = module_nodes(source, names)
-        elif name == "gat_lstm":
-            tree = module_nodes(source)
         else:
             tree = ast.parse(source)
         values[name] = hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
@@ -303,7 +299,7 @@ def finalize_test(root, config_path, raw_dir, registry_path, experiment_ids, bra
     validate_budget(registry)
     state = registry.snapshot()
     selected = [record for record in state["experiments"] if record["experiment_id"] in set(experiment_ids)]
-    expected_models = {"stgt", "adaptive_stgt", "gat_lstm"}
+    expected_models = {"stgt", "adaptive_stgt"}
     expected_seeds = {int(seed) for seed in config.get("seeds", [config["seed"]])}
     expected_pairs = {(model, seed) for model in expected_models for seed in expected_seeds}
     selected_pairs = {(record["model"], int(record["configuration"]["seed"])) for record in selected}
@@ -570,8 +566,8 @@ def build_parser():
     parser.add_argument("--config", type=Path, default=Path("configs/experiment.yaml"))
     parser.add_argument("--raw-dir", type=Path)
     parser.add_argument("--registry", type=Path, required=True)
-    parser.add_argument("--models", nargs="+", choices=["stgt", "adaptive_stgt", "gat_lstm"],
-                        default=["stgt", "adaptive_stgt", "gat_lstm"])
+    parser.add_argument("--models", nargs="+", choices=["stgt", "adaptive_stgt"],
+                        default=["stgt", "adaptive_stgt"])
     parser.add_argument("--max-runs", type=int, default=10)
     parser.add_argument("--allow-execution", action="store_true")
     parser.add_argument("--force-retry", action="store_true")

@@ -116,7 +116,6 @@ def test_metrics_zero_policy_is_explicit():
 def test_model_forward_shapes():
     torch = pytest.importorskip("torch")
     pytest.importorskip("torch_geometric")
-    from gat_lstm import AdaptiveFusionGATLSTM
     from stgt import AdaptiveSTGT, ReferenceSTGT
 
     x = torch.randn(2, 4, 5, 1)
@@ -124,18 +123,8 @@ def test_model_forward_shapes():
     node_types = torch.tensor([0, 1, 2, 3], dtype=torch.long)
     stgt = ReferenceSTGT(lookback=5, horizon=3, d_model=16, temporal_heads=2, spatial_heads=2)
     adaptive_stgt = AdaptiveSTGT(lookback=5, horizon=3, d_model=16, temporal_heads=2, spatial_heads=2)
-    gat_lstm = AdaptiveFusionGATLSTM(
-        lookback=5,
-        horizon=3,
-        gat_hidden=8,
-        gat_heads=2,
-        lstm_hidden=8,
-        gat_layers=2,
-        lstm_layers=2,
-    )
     stgt.eval()
     adaptive_stgt.eval()
-    gat_lstm.eval()
     with torch.no_grad():
         prediction = stgt(x, edges, node_types)
         assert tuple(prediction.shape) == (2, 4, 3)
@@ -150,10 +139,6 @@ def test_model_forward_shapes():
         assert torch.allclose(temporal_weight + spatial_weight, torch.ones_like(temporal_weight))
         separate = torch.cat([adaptive_stgt(x[i:i+1], edges, node_types) for i in range(2)])
         assert torch.allclose(adaptive_prediction, separate, atol=1e-5)
-        gat_prediction = gat_lstm(x, edges)
-        assert tuple(gat_prediction.shape) == (2, 4, 3)
-        separate = torch.cat([gat_lstm(x[i:i+1], edges) for i in range(2)])
-        assert torch.allclose(gat_prediction, separate, atol=1e-5)
 
 
 def test_adaptive_stgt_backward_reaches_temporal_spatial_and_gate():

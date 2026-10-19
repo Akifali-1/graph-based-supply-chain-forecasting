@@ -83,6 +83,10 @@ class PaperData:
         data_config = config["data"]
         self.lookback = int(data_config["lookback"])
         self.horizon = int(data_config["horizon"])
+        max_time_steps = data_config.get("max_time_steps") or data_config.get("max_steps") or config.get("max_time_steps") or config.get("max_steps")
+        if max_time_steps is not None:
+            max_time_steps = int(max_time_steps)
+            self.raw = self.raw[:, :max_time_steps]
         self.ranges = {
             key: tuple(value) if isinstance(value, (list, tuple)) else value
             for key, value in checkpoint["split_ranges"].items()
@@ -499,7 +503,26 @@ def md_table(frame: pd.DataFrame) -> str:
     return frame.to_markdown(index=False, floatfmt=".6f")
 
 
-def main(artifacts: Path = Path("drive_artifacts"), output: Path = Path("paper_outputs")):
+def discover_available_seeds(artifacts: Path) -> list[int]:
+    """Auto-detect which seeds are present in the downloaded artifacts."""
+    candidates = [42, 123, 2026, 7, 99]
+    found = []
+    for s in candidates:
+        if (artifacts / "isomorph" / f"stgt_seed{s}" / "checkpoints/best.pt").exists() or \
+           (artifacts / "supplygraph" / f"stgt_seed{s}" / "checkpoints/best.pt").exists():
+            found.append(s)
+    return found if found else [42, 123, 2026]
+
+
+def main(artifacts: Path = Path("drive_artifacts"), output: Path = Path("paper_outputs"), seeds: list[int] | None = None):
+    global SEEDS
+    if seeds:
+        SEEDS = [int(s) for s in seeds]
+    else:
+        detected = discover_available_seeds(artifacts)
+        if len(detected) >= 3:
+            SEEDS = detected
+    print(f"Active evaluation seeds ({len(SEEDS)}): {SEEDS}", flush=True)
     configure_paths(artifacts, output)
     print("NO TRAINING: forward-pass evaluation only", flush=True)
     predictions: dict[tuple, dict] = {}
@@ -580,5 +603,7 @@ if __name__ == "__main__":
                         help="Local directory containing downloaded Drive artifacts")
     parser.add_argument("--output", type=Path, default=Path("paper_outputs"),
                         help="Directory for the paper CSV and JSON outputs")
+    parser.add_argument("--seeds", type=int, nargs="+", default=None,
+                        help="List of seeds to evaluate (e.g. 42 123 2026 7 99)")
     args = parser.parse_args()
-    main(args.artifacts, args.output)
+    main(args.artifacts, args.output, seeds=args.seeds)

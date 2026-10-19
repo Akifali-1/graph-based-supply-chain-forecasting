@@ -207,3 +207,38 @@ def scale_values(values: np.ndarray, state: Mapping[str, Any]) -> np.ndarray:
     center = np.asarray(state["center"], dtype=np.float64)
     scale = np.asarray(state["scale"], dtype=np.float64)
     return ((values - center.reshape(-1, 1)) / scale.reshape(-1, 1)).astype(np.float32)
+
+
+def permute_edge_index(
+    edge_index: torch.Tensor,
+    num_nodes: int,
+    graph_seed: int = 0,
+) -> torch.Tensor:
+    """Construct a permuted edge index with the same edge count and 0 shared directed edges with original."""
+    real_pairs = set(zip(edge_index[0].tolist(), edge_index[1].tolist()))
+    num_edges = edge_index.shape[1]
+    rng = np.random.default_rng(graph_seed)
+
+    # 1. First attempt: node permutation with rejection (preserves degree structure where possible)
+    for _ in range(1000):
+        p = rng.permutation(num_nodes)
+        candidate = [(int(p[u]), int(p[v])) for u, v in zip(edge_index[0].tolist(), edge_index[1].tolist())]
+        if any(u == v for u, v in candidate):
+            continue
+        if len(set(candidate)) != num_edges:
+            continue
+        if any(pair in real_pairs for pair in candidate):
+            continue
+        ordered = sorted(candidate)
+        return torch.tensor(ordered, dtype=torch.long).t().contiguous()
+
+    # 2. Second attempt: sample distinct non-self directed edges with 0 overlap
+    all_possible = [(u, v) for u in range(num_nodes) for v in range(num_nodes) if u != v and (u, v) not in real_pairs]
+    if len(all_possible) < num_edges:
+        raise ValueError(
+            f"Not enough non-overlapping edges available to construct permuted graph: {len(all_possible)} < {num_edges}"
+        )
+    chosen_indices = rng.choice(len(all_possible), size=num_edges, replace=False)
+    chosen = sorted([all_possible[i] for i in chosen_indices])
+    return torch.tensor(chosen, dtype=torch.long).t().contiguous()
+

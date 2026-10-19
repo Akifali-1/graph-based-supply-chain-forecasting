@@ -38,6 +38,7 @@ from paper_evaluation import (
     naive_predictions,
     PaperData,
     configure_paths,
+    discover_available_seeds,
 )
 
 ARTIFACTS = ROOT / "drive_artifacts"
@@ -137,11 +138,20 @@ def compute_mbb(d: np.ndarray, block_length: int = 14, n_boot: int = 10000, seed
     return ci_low, ci_high, boot_p
 
 
-def main(artifacts: Path = Path("drive_artifacts"), output: Path = Path("paper_outputs")):
-    global ARTIFACTS, OUT
+def main(artifacts: Path = Path("drive_artifacts"), output: Path = Path("paper_outputs"), seeds: list[int] | None = None):
+    global ARTIFACTS, OUT, SEEDS
     ARTIFACTS = artifacts.expanduser().resolve()
     OUT = output.expanduser().resolve()
     OUT.mkdir(parents=True, exist_ok=True)
+    if seeds:
+        SEEDS = [int(s) for s in seeds]
+    else:
+        detected = discover_available_seeds(ARTIFACTS)
+        if len(detected) >= 3:
+            SEEDS = detected
+    import paper_evaluation
+    paper_evaluation.SEEDS = SEEDS
+    print(f"Active statistical testing seeds ({len(SEEDS)}): {SEEDS}", flush=True)
     configure_paths(ARTIFACTS, OUT)
     print("=" * 80)
     print("STEP 1: FIX CRITICAL WINDOW AGGREGATION BUG & VERIFY EXACT MATCH")
@@ -210,13 +220,14 @@ def main(artifacts: Path = Path("drive_artifacts"), output: Path = Path("paper_o
             mean_mae_b = float(np.mean(E_B))
             mean_diff = float(np.mean(d_t))
 
-            # 1. 3-Seed Paired Level
+            # 1. Multi-Seed Paired Level
             s_diffs = [seed_maes[model_a][s] - seed_maes[model_b][s] for s in SEEDS]
             seed_diff_mean = float(np.mean(s_diffs))
             seed_diff_std = float(np.std(s_diffs, ddof=1))
-            if seed_diff_std > 0:
-                seed_t = float(seed_diff_mean / (seed_diff_std / np.sqrt(3.0)))
-                seed_p = float(2.0 * stats.t.sf(abs(seed_t), df=2))
+            n_seeds = len(SEEDS)
+            if seed_diff_std > 0 and n_seeds > 1:
+                seed_t = float(seed_diff_mean / (seed_diff_std / np.sqrt(float(n_seeds))))
+                seed_p = float(2.0 * stats.t.sf(abs(seed_t), df=n_seeds - 1))
                 cohens_d = float(seed_diff_mean / seed_diff_std)
             else:
                 seed_t, seed_p, cohens_d = 0.0, 1.0, 0.0
@@ -304,5 +315,7 @@ if __name__ == "__main__":
                         help="Local directory containing downloaded Drive artifacts")
     parser.add_argument("--output", type=Path, default=Path("paper_outputs"),
                         help="Directory containing and receiving paper outputs")
+    parser.add_argument("--seeds", type=int, nargs="+", default=None,
+                        help="List of seeds to evaluate (e.g. 42 123 2026 7 99)")
     args = parser.parse_args()
-    main(args.artifacts, args.output)
+    main(args.artifacts, args.output, seeds=args.seeds)

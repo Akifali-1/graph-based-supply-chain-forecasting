@@ -14,7 +14,7 @@ from src.experiment_registry import BudgetExceeded, RecoveryRequired, Registry
 @pytest.fixture
 def setup_gate(tmp_path, monkeypatch):
     config = {"seed": 42, "seeds": [42], "deterministic": True, "data": {"processed_dir": str(tmp_path / "processed")},
-              "training": {"batch_size": 1}, "models": {"stgt": {}, "adaptive_stgt": {}, "gat_lstm": {}},
+              "training": {"batch_size": 1}, "models": {"stgt": {}, "adaptive_stgt": {}},
               "experiment": {"max_gpu_runs": 10, "max_job_seconds": 30},
               "outputs": {"drive_artifact_root": str(tmp_path / "experiments")}}
     path = tmp_path / "config.yaml"
@@ -22,7 +22,7 @@ def setup_gate(tmp_path, monkeypatch):
     registry = Registry(tmp_path / "registry.json")
     dataset = {"raw": {"raw": "synthetic"}, "processed": {"processed": "synthetic"}}
     ids = []
-    for name in ("stgt", "adaptive_stgt", "gat_lstm"):
+    for name in ("stgt", "adaptive_stgt"):
         record = registry.reserve(model=name, signature=name, configuration=config, git_commit="code1",
                                   dataset_manifest=dataset, artifact_dir=tmp_path / "attempts")["record"]
         registry.update(record["experiment_id"], "completed")
@@ -42,7 +42,7 @@ def fake_success(command, **kwargs):
     config = yaml.safe_load(Path(command[command.index("--config") + 1]).read_text())
     frozen = config["final_evaluation"]
     workspace = EvaluationWorkspace(frozen["directory"], frozen["experiment_ids"])
-    for name in ("stgt_seed42", "adaptive_stgt_seed42", "gat_lstm_seed42", "report"):
+    for name in ("stgt_seed42", "adaptive_stgt_seed42", "report"):
         def producer(folder):
             (folder / "synthetic.json").write_text('{"synthetic": true}')
             if name == "report":
@@ -68,11 +68,11 @@ def test_explicit_recovery_reuses_frozen_selection_and_never_spends_training_bud
     monkeypatch.setattr(orchestrator, "run_logged", fake_success)
     orchestrator.finalize_test(root, config, root / "raw", registry.path, ids, resume_final_test=True)
     assert frozen_bytes == (destination / "selection.json").read_bytes()
-    assert registry.status()["submitted_runs"] == 3
+    assert registry.status()["submitted_runs"] == 2
     assert len(list((destination / "evaluation_attempts").iterdir())) == 2
     monkeypatch.setattr(orchestrator, "run_logged", lambda *args, **kwargs: pytest.fail("Completed evaluation repeated"))
     orchestrator.finalize_test(root, config, root / "raw", registry.path, ids)
-    assert registry.status()["submitted_runs"] == 3
+    assert registry.status()["submitted_runs"] == 2
 
 
 def test_completed_report_corruption_is_not_overwritten(setup_gate, monkeypatch):
@@ -123,7 +123,7 @@ def test_incompatible_evaluator_upgrade_is_rejected(setup_gate, monkeypatch):
     monkeypatch.setattr(orchestrator, "scientific_source_fingerprint", lambda *args: {"model": args[1]})
     with pytest.raises(ValueError, match="changes .* definitions"):
         orchestrator.finalize_test(root, config, root / "raw", registry.path, ids, allow_evaluator_upgrade=True)
-    assert registry.status()["submitted_runs"] == 3
+    assert registry.status()["submitted_runs"] == 2
 
 
 def test_expired_campaign_blocks_evaluation_without_resetting_deadline(setup_gate, monkeypatch):
@@ -137,4 +137,4 @@ def test_expired_campaign_blocks_evaluation_without_resetting_deadline(setup_gat
     with pytest.raises(BudgetExceeded):
         orchestrator.finalize_test(root, config, root / "raw", registry.path, ids)
     assert registry.status()["deadline_at"] == "2000-01-01T00:00:00+00:00"
-    assert registry.status()["submitted_runs"] == 3
+    assert registry.status()["submitted_runs"] == 2

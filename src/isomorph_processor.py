@@ -34,7 +34,12 @@ def _aggregate_history(path: Path, days: int, node_to_index: dict[str, int], val
     return result
 
 
-def process_rollout(raw_root: Path, output_root: Path, start_date: str = "2000-01-01") -> dict:
+def process_rollout(
+    raw_root: Path,
+    output_root: Path,
+    start_date: str = "2000-01-01",
+    max_time_steps: int | None = None,
+) -> dict:
     raw_root = Path(raw_root)
     output_root = Path(output_root)
     scenario = json.loads((raw_root / "scenario.json").read_text(encoding="utf-8"))
@@ -59,6 +64,16 @@ def process_rollout(raw_root: Path, output_root: Path, start_date: str = "2000-0
     edges = edge_frame.rename(columns={"from": "source", "to": "target"})[["source", "target"]].copy()
     edges["edge_type"] = "directed_route"
     inventory = _aggregate_history(raw_root / "inventory_history.parquet", days, node_to_index, "on_hand")
+    if max_time_steps is not None:
+        max_time_steps = int(max_time_steps)
+        if max_time_steps > days:
+            raise ValueError(f"Requested max_time_steps={max_time_steps} exceeds available days={days}")
+        inventory = inventory[:max_time_steps]
+        days = inventory.shape[0]
+        node_variances = np.var(inventory, axis=0)
+        if (node_variances <= 0.0).any():
+            zero_var_nodes = [nodes[i] for i, v in enumerate(node_variances) if v <= 0.0]
+            raise ValueError(f"Truncated slice T={max_time_steps} contains non-active/zero variance nodes: {zero_var_nodes}")
     dates = pd.date_range(start=start_date, periods=days, freq="D")
     sales = pd.DataFrame(inventory, columns=nodes)
     sales.insert(0, "Date", dates)
@@ -74,6 +89,7 @@ def process_rollout(raw_root: Path, output_root: Path, start_date: str = "2000-0
         "node_count": len(nodes),
         "item_count": int(scenario["n_items"]),
         "time_steps": days,
+        "max_time_steps": max_time_steps,
         "start_date_anchor": start_date,
         "directed_edges": True,
         "edge_count": len(edges),
@@ -85,6 +101,7 @@ def process_rollout(raw_root: Path, output_root: Path, start_date: str = "2000-0
         "node_count": len(nodes),
         "edge_count": len(edges),
         "time_steps": days,
+        "max_time_steps": max_time_steps,
         "node_types": node_frame["node_type"].value_counts().to_dict(),
         "target": target_definition,
         "min_target": float(inventory.min()),
@@ -100,5 +117,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--start-date", default="2000-01-01")
+    parser.add_argument("--max-steps", "--max-time-steps", type=int, default=None,
+                        help="Optional chronological truncation of time steps (e.g. 221)")
     args = parser.parse_args()
-    print(json.dumps(process_rollout(args.raw_root, args.output_root), indent=2))
+    print(json.dumps(process_rollout(args.raw_root, args.output_root, start_date=args.start_date, max_time_steps=args.max_steps), indent=2))
