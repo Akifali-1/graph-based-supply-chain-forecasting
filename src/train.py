@@ -63,8 +63,7 @@ class ExperimentData:
         is_permuted = (
             config.get("model") == "stgt_permuted"
             or config.get("graph_variant") == "permuted"
-            or data_config.get("graph_seed") is not None
-            or config.get("graph_seed") is not None
+            or (data_config.get("graph_mode") == "permuted")
         )
         if is_permuted:
             graph_seed = data_config.get("graph_seed", config.get("graph_seed", 0))

@@ -1,6 +1,5 @@
 dataset: isomorph_t221
 max_time_steps: 221
-graph_seed: 0
 seed: 42
 seeds:
 - 42
