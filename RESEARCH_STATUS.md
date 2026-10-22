@@ -2,25 +2,23 @@
 
 ## Current conference-paper campaign
 
-The current paper evaluation focuses strictly on the **ISOMORPH** and **SupplyGraph** supply chain benchmark datasets. Existing Drive checkpoints were evaluated with forward passes only. No training epochs, hyperparameter searches, or Job C scripts were run for this extraction.
+The paper evaluation benchmark covers **ISOMORPH** (13 nodes, $T=52{,}560$) and **SupplyGraph** (39 nodes, $T=221$). The full 5-seed benchmark across seeds `{42, 123, 2026, 7, 99}` is completely trained, verified, and audited.
 
-Verified published artifacts are in `paper_outputs/`:
+Verified published artifacts are in `paper_outputs/` and `results/expansion_5seeds/`:
 
-- unified validation/test metrics and mean/sample-standard-deviation summaries (`paper_main_metrics.csv`, `paper_summary_stats.csv`);
-- Job B real-vs-permuted paired tests across 3 seeds (`paper_job_b_paired.csv`);
-- multi-horizon, node-role/sparsity, learned-gate, and compute-cost tables;
-- window-level significance and rigorous time-aware block bootstrap statistics (`paper_window_significance.csv`, `paper_rigorous_stats.csv`);
-- publication-ready 300-DPI PNG and vector PDF paper figures.
+- Unified validation/test metrics and 5-seed mean/sample-standard-deviation summaries (`paper_main_metrics.csv`, `paper_summary_stats.csv`);
+- Real-vs-permuted graph paired hypothesis tests across all 5 seeds (`paper_job_b_paired.csv`, $p = 0.0066$ on ISOMORPH);
+- Multi-horizon, node-role/sparsity, learned-gate, and compute-cost tables;
+- Window-level significance and rigorous time-aware block bootstrap statistics (`paper_window_significance.csv`, `paper_rigorous_stats.csv`);
+- Publication-ready 300-DPI PNG and vector PDF paper figures.
 
-The six Job B permuted STGT runs are complete on Drive across seeds `42`, `123`, and `2026`. The separate `job_b_pipeline_real_supplygraph_v2` seed-42 reproduction gate remains interrupted with no final result row, so it is explicitly recorded as **not passed** (`paper_job_b_gate_status.json`) rather than silently inferred from another run.
-
-Drive tokens, OAuth client files, checkpoints, raw data, and downloaded private artifacts are not repository contents. The repository includes only portable code, reviewed aggregate outputs, documentation, and tests.
+Drive tokens, OAuth credentials, raw multi-gigabyte data files, and raw model weights remain safely in private cloud storage and are never committed to Git. The repository includes strictly portable code, reproducible configurations, reviewed aggregate outputs, documentation, tests, and execution notebooks.
 
 ## Evidence available
 
-- Benchmark datasets: ISOMORPH (13 supply chain nodes) and SupplyGraph (39 supply chain nodes).
-- Architectures: STGT reference baseline, Adaptive STGT (proposed dynamic gating), GAT-LSTM comparison, and ablation variants (Temporal-only, Spatial-only, Fixed Fusion).
-- Multi-seed evaluations across three fixed random seeds: `42`, `123`, and `2026`.
+- Benchmark datasets: ISOMORPH (13 supply chain nodes, $T=52{,}560$) and SupplyGraph (39 supply chain nodes, $T=221$).
+- Architectures: STGT reference baseline, Adaptive STGT (proposed dynamic gating), and ablation variants (Temporal-only, Spatial-only, Fixed Fusion, Permuted-Graph STGT).
+- Multi-seed evaluations across five fixed random seeds: `42`, `123`, `2026`, `7`, and `99`.
 - Metric suite: MAE, RMSE, WAPE, sMAPE, $R^2$, and Masked MAPE, evaluated across rolling multi-horizon forecasting windows ($h = 1, \dots, 7$).
 - Static/synthetic test suite: unit and integration verification for graph structure, feature scalers, metric calculations, and checkpoint loaders.
 

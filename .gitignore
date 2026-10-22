@@ -52,3 +52,9 @@ paper_evaluation_console.md
 # Local OS/editor files
 .DS_Store
 Thumbs.db
+
+# Scratch and temporary root files
+scratch/
+tmp/
+*.tmp
+/results_*.csv
